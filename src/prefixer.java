@@ -6,19 +6,31 @@ import java.util.Stack;
 import java.util.StringTokenizer;
 
 public class prefixer {
-	public static void main(String args[]) {
-		String infixString, prefixString = null;
+	public static void main(String[] args) {
+		String infixString, prefixString, filename = null;
+		boolean reduce = false;
 
 		// command line argument check
-		if (args.length != 1) {
-			System.err.println("exactly one argument required (the filename)");
+		if (args.length > 2) {
+			System.err.println("invalid number of arguments");
+			System.err.println("prefixer [-r] FILE_NAME");
+			System.err.println("use -r for max reduction");
 			System.exit(1);
+		} else {
+			if (args.length == 1) {
+				filename = args[0];
+			} else {
+				if (args[0].equals("-r")) {
+					reduce = true;
+				}
+				filename = args[1];
+			}
 		}
 
 		// read expression from file
-		infixString = readFile(args);
+		infixString = readFile(filename);
 		// convert infix to prefix
-		prefixString = infixToPrefix(infixString);
+		prefixString = infixToPrefix(infixString, reduce);
 
 		System.out.println(prefixString);
 	}
@@ -29,7 +41,7 @@ public class prefixer {
 	 * the trick is to reverse the input string and use two stacks, one stack
 	 * for the output and one for holding operators.
 	 */
-	private static String infixToPrefix(String expression) {
+	private static String infixToPrefix(String expression, boolean reduce) {
 		StringBuffer reversed = new StringBuffer(expression).reverse();
 		StringTokenizer tokens = new StringTokenizer(reversed.toString());
 		Stack<String> stack = new Stack<String>();
@@ -77,7 +89,7 @@ public class prefixer {
 			output.push(stack.pop());
 		}
 
-		return buildOutputString(output);
+		return buildOutputString(output, reduce);
 	}
 
 	/**
@@ -86,7 +98,7 @@ public class prefixer {
 	 * reverses the output Stack from infixToPrefix, meanwhile adding "(" and
 	 * ")" when needed
 	 */
-	private static String buildOutputString(Stack<String> output) {
+	private static String buildOutputString(Stack<String> output, boolean reduce) {
 		StringBuffer toReturn = new StringBuffer();
 
 		// to mark when we found an operator so we can prepend a "("
@@ -99,41 +111,111 @@ public class prefixer {
 		int leftParenCount = 0;
 		int rightParenCount = 0;
 
-		while (!output.empty()) {
-			String op = output.pop();
+		// is the -r flag set?
+		if (!reduce) {
+			while (!output.empty()) {
+				String op = output.pop();
 
-			// if the next output is an operator, prepend a "("
-			if (isOperator(op)) {
-				toReturn.append("(");
-				// if a previous operand was already found, but operatorCount
-				// hasn't reached 2, then reset the counter for the ")"
-				if (foundOperator) {
-					operatorCount = 0;
-				} else {
-					foundOperator = true;
+				// if the next output is an operator, prepend a "("
+				if (isOperator(op)) {
+					toReturn.append("(");
+					// if a previous operand was already found, but
+					// operatorCount
+					// hasn't reached 2, then reset the counter for the ")"
+					if (foundOperator) {
+						operatorCount = 0;
+					} else {
+						foundOperator = true;
+					}
+					leftParenCount++;
+				} else if (foundOperator) {
+					operatorCount++;
 				}
-				leftParenCount++;
-			} else if (foundOperator) {
-				operatorCount++;
+
+				toReturn.append(op);
+
+				// once we hit two consecutive operands, append a ")" to close
+				if (operatorCount == 2) {
+					toReturn.append(")");
+					rightParenCount++;
+					operatorCount = 0;
+				}
+
+				if (!output.empty()) {
+					toReturn.append(" ");
+				} else if (rightParenCount < leftParenCount) {
+					toReturn.append(")");
+				}
+
+				return toReturn.toString();
 			}
-
-			toReturn.append(op);
-
-			// once we hit two consecutive operands, append a ")" to close
-			if (operatorCount == 2) {
-				toReturn.append(")");
-				rightParenCount++;
-				operatorCount = 0;
-			}
-
-			if (!output.empty()) {
+		} else {
+			// -r flag is set, attempt to reduce as much as possible
+			while (!output.empty()) {
+				toReturn.append(output.pop());
 				toReturn.append(" ");
-			} else if (rightParenCount < leftParenCount) {
-				toReturn.append(")");
+			}
+			return evaluate(toReturn);
+		}
+		return null;
+	}
+
+	// prefix evaluation
+	private static String evaluate(StringBuffer toReturn) {
+		StringBuffer reversed = toReturn.reverse();
+		StringTokenizer tokenized = new StringTokenizer(reversed.toString());
+		Stack<String> stack = new Stack<String>();
+
+		while (tokenized.hasMoreTokens()) {
+			String token = tokenized.nextToken();
+
+			if (isOperand(token)) {
+				stack.push(token);
+			}
+			if (isOperator(token)) {
+				String operand1 = stack.pop();
+				String operand2 = stack.pop();
+				String result = compute(operand1, token, operand2);
+				stack.push(result);
 			}
 		}
 
-		return toReturn.toString();
+		return stack.pop();
+	}
+
+	/**
+	 * reduces the arithmetic expression if the operands are not variables.
+	 * 
+	 * if any of the operands contain a variable, simply return the infix
+	 * expression
+	 */
+	private static String compute(String operand1, String token, String operand2) {
+		if (!isNumeric(operand1) || !isNumeric(operand2)) {
+			return String.format("(%s %s %s)", token, operand1, operand2);
+		} else {
+			int op1 = Integer.parseInt(operand1);
+			int op2 = Integer.parseInt(operand2);
+			char operator = token.charAt(0);
+			int result;
+
+			switch (operator) {
+			case '+':
+				result = op1 + op2;
+				break;
+			case '-':
+				result = op1 - op2;
+				break;
+			case '*':
+				result = op1 * op2;
+				break;
+			case '/':
+				result = op1 / op2;
+				break;
+			default:
+				return "";
+			}
+			return Integer.toString(result);
+		}
 	}
 
 	// TRUE if a is lower priority than b, FALSE if a is higher priority than b
@@ -150,9 +232,14 @@ public class prefixer {
 		return "+-*/".indexOf(token) != -1;
 	}
 
-	private static String readFile(String[] args) {
+	private static boolean isNumeric(String token) {
+		Character c = token.charAt(0);
+		return (c >= '0' && c <= '9');
+	}
+
+	private static String readFile(String filename) {
 		try {
-			FileInputStream fstream = new FileInputStream(args[0]);
+			FileInputStream fstream = new FileInputStream(filename);
 			DataInputStream in = new DataInputStream(fstream);
 			BufferedReader br = new BufferedReader(new InputStreamReader(in));
 			String strline;
