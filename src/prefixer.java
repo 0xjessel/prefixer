@@ -42,7 +42,7 @@ public class prefixer {
 	 * for the output and one for holding operators.
 	 */
 	private static String infixToPrefix(String expression, boolean reduce) {
-		StringBuffer reversed = new StringBuffer(expression).reverse();
+		StringBuffer reversed = new StringBuffer(expression).reverse();//reverse(expression);
 		StringTokenizer tokens = new StringTokenizer(reversed.toString());
 		Stack<String> stack = new Stack<String>();
 		Stack<String> output = new Stack<String>();
@@ -96,7 +96,7 @@ public class prefixer {
 	 * constructs the prefix expression
 	 * 
 	 * reverses the output Stack from infixToPrefix, meanwhile adding "(" and
-	 * ")" when needed
+	 * ")" when needed if the -r flag is not set
 	 */
 	private static String buildOutputString(Stack<String> output, boolean reduce) {
 		StringBuffer toReturn = new StringBuffer();
@@ -146,9 +146,9 @@ public class prefixer {
 				} else if (rightParenCount < leftParenCount) {
 					toReturn.append(")");
 				}
-
-				return toReturn.toString();
 			}
+
+			return toReturn.toString();
 		} else {
 			// -r flag is set, attempt to reduce as much as possible
 			while (!output.empty()) {
@@ -157,10 +157,9 @@ public class prefixer {
 			}
 			return evaluate(toReturn);
 		}
-		return null;
 	}
 
-	// prefix evaluation
+	// prefix arithmetic evaluation
 	private static String evaluate(StringBuffer toReturn) {
 		StringBuffer reversed = toReturn.reverse();
 		StringTokenizer tokenized = new StringTokenizer(reversed.toString());
